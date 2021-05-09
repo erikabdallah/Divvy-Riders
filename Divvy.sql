@@ -2,7 +2,7 @@
 Divvy Rider Info Exploration
 
 Skills used: Converting Data Types, Joins, Aggregate Functions, Subqueries, 
-Creating Views, Unions
+Creating Views, Unions, Case Statements
 
 */
 
