@@ -4,6 +4,5 @@ Analysis based on data collected from Q2 2019-Q1 2020.
 
 Includes: 
   * SQL script where data was cleaned and processed
-  * Powerpoint presentation with Tableau vizzes
 
 You can also check out my Tableau vizzes here: https://public.tableau.com/profile/erik.abdallah#!/vizhome/DivvyBikeRentalUsesbyStation-ChicagoIL/MemberWeekday
