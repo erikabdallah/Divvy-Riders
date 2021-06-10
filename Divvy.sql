@@ -1,8 +1,7 @@
 /* 
-Divvy Rider Info Exploration
+Divvy Rider Info Exploration and Data-Cleaning
 
-Skills used: Converting Data Types, Joins, Aggregate Functions, Subqueries, 
-Creating Views, Unions, Case Statements
+Skills used: Converting Data Types, Joins, Aggregate Functions, Subqueries, Creating Views, Unions, Case Statements
 
 */
 
@@ -39,13 +38,10 @@ CREATE TABLE divvy_2020_q1_trips_locations (
 
 /* view for all stations and their map coordinates
  to be joined to other tables via station_id */
-create view station_coordinates AS
-select start_station as station, start_station_id AS station_id, start_lat as latitude, start_lng as longitude from divvy_2020_q1_trips_locations
-group by start_station, start_station_id, start_lat, start_lng
-union
-select end_station as station, end_station_id AS station_id, end_lat as latitude, end_lng as longitude from divvy_2020_q1_trips_locations
-group by end_station, end_station_id, end_lat, end_lng
-order by station_id;
+CREATE VIEW station_coordinates AS
+	SELECT start_station AS station, start_station_id AS station_id, start_lat AS latitude, start_lng AS longitude 
+	FROM divvy_2020_q1_trips_locations
+	GROUP BY start_station, start_station_id, start_lat, start_lng;
 
 
 /* table for demographic breakdown of subscribers q2 2019 - q4 2019
@@ -75,10 +71,10 @@ WHERE gender IS NULL OR birth_year IS NULL;
  ride_length, and verbal day of week
  run for all 4 quarters */
  
-CREATE VIEW divvy_q1_2020_rides AS
+CREATE TABLE divvy_q1_2020_rides AS
 SELECT *, end_time::TIMESTAMP - start_time::TIMESTAMP AS ride_length
 FROM
-(select ride_id, start_date || ' ' || start_time AS start_time, 
+(SELECT ride_id, start_date || ' ' || start_time AS start_time, 
 	end_date || ' ' || end_time AS end_time, start_station_id, end_station_id, 
  	CASE 
  		WHEN user_type = 'Subscriber' THEN 'Member'
@@ -93,145 +89,143 @@ FROM
 		WHEN day_of_week = 6 THEN 'Friday'
 		WHEN day_of_week = 7 THEN 'Saturday'
 	END AS day_of_week
-from divvy_2020_q1_trips_users) a;
+FROM divvy_2020_q1_trips_users) a;
+
+-- new column for just time and update, setting equal to start_time
+ALTER TABLE divvy_q4_2019_rides
+ADD COLUMN time time;
+
+UPDATE divvy_q4_2019_rides
+SET time = start_time::time
 
 
-alter table divvy_q4_2019_rides
-add column time time;
-
-update divvy_q4_2019_rides
-set time = start_time::time
-
+-- extract hour from new time column to create more consistent time categories and filter by weekdays
 CREATE TABLE divvy_q4_2019_rides1 AS
-select ride_id, start_station_id, user_type, day_of_week, ride_length, 
-	extract(hour from time) as hour
-from divvy_q4_2019_rides
-WHERE day_of_week IN('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday');
+	SELECT ride_id, start_station_id, user_type, day_of_week, ride_length, extract(hour FROM time) AS hour
+	FROM divvy_q4_2019_rides
+	WHERE day_of_week IN('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday');
 
+
+-- create table of weekday ride times for Casual and Members for viz
 CREATE VIEW weekday_rides_by_time AS
-select user_type, hour, SUM(count)
-FROM
-(select user_type, hour, Count(*) from divvy_q1_2020_rides1
-group by user_type, hour 
-union 
-select user_type, hour, Count(*) from divvy_q2_2019_rides1
-group by user_type, hour
-union 
-select user_type, hour, Count(*) from divvy_q3_2019_rides1
-group by user_type, hour
-union 
-select user_type, hour, Count(*) from divvy_q4_2019_rides1
-group by user_type, hour)
-group by user_type, hour;
+	SELECT user_type, hour, SUM(count)
+	FROM
+		(SELECT user_type, hour, COUNT(*) FROM divvy_q1_2020_rides1
+		GROUP BY user_type, hour 
+			UNION ALL 
+		SELECT user_type, hour, COUNT(*) FROM divvy_q2_2019_rides1
+		GROUP BY user_type, hour
+			UNION ALL 
+		SELECT user_type, hour, COUNT(*) FROM divvy_q3_2019_rides1
+		GROUP BY user_type, hour
+			UNION ALL 
+		SELECT user_type, hour, COUNT(*) FROM divvy_q4_2019_rides1
+		GROUP BY user_type, hour)
+	GROUP BY user_type, hour;
 
 
 /* find out what demographic has the most subscriptions
  run q2 2019 - q4 2019 */
  
 CREATE VIEW member_demographics AS
-SELECT *, 
-	CASE
+	SELECT *, 
+		CASE
 		WHEN age < 18 THEN '-18'
 		WHEN age >= 18 AND age <= 25 THEN '18-25'
 		WHEN age >= 26 AND age <= 40 THEN '26-40'
 		WHEN age >= 41 AND age <= 64 THEN '41-64'
 		WHEN age >= 65 THEN '65+'
-	END AS age_group
-FROM (
-	SELECT gender, 
-	DATE_PART('year', '2019-01-01'::DATE) - DATE_PART('year', birth_year) AS age
-	FROM subscriber_demographics_q2_2019
-	WHERE gender IS NOT NULL 
-		UNION ALL
-	SELECT gender, 
-	DATE_PART('year', '2019-01-01'::DATE) - DATE_PART('year', birth_year) AS age
-	FROM subscriber_demographics_q3_2019
-	WHERE gender IS NOT NULL 
-		UNION ALL
-	SELECT gender,
-	DATE_PART('year', '2019-01-01'::DATE) - DATE_PART('year', birth_year) AS age
-	FROM subscriber_demographics_q4_2019
-	WHERE gender IS NOT NULL) a
-WHERE age BETWEEN 10 AND 90
-order by age desc
-;
+		END AS age_group
+	FROM (
+		SELECT gender, 
+		DATE_PART('year', '2019-01-01'::DATE) - DATE_PART('year', birth_year) AS age
+		FROM subscriber_demographics_q2_2019
+		WHERE gender IS NOT NULL 
+			UNION ALL
+		SELECT gender, 
+		DATE_PART('year', '2019-01-01'::DATE) - DATE_PART('year', birth_year) AS age
+		FROM subscriber_demographics_q3_2019
+		WHERE gender IS NOT NULL 
+			UNION ALL
+		SELECT gender,
+		DATE_PART('year', '2019-01-01'::DATE) - DATE_PART('year', birth_year) AS age
+		FROM subscriber_demographics_q4_2019
+		WHERE gender IS NOT NULL) a
+	WHERE age BETWEEN 10 AND 90
+	ORDER BY age DESC;
 
 	
 	--partition by age_group and gender, aggregate, and export for viz
-select gender, age_group, COUNT(*) 
-from member_demographics
+SELECT gender, age_group, COUNT(*) 
+FROM member_demographics
 GROUP BY gender, age_group
-order by age_group, gender;
+ORDER BY age_group, gender;
 
 
-/* 2 views - 1 for casual users and 1 for members 
- ride_length differences between casual and member riders
+/* View with ride_length differences between casual and member riders
  4 quarters compiled */
 	
 CREATE VIEW ride_length_by_day AS
-SELECT day_of_week, ride_length, user_type, sum(count)
-FROM
-(SELECT day_of_week, ride_length, user_type, count(*)
-FROM divvy_q1_2020_rides
-GROUP BY day_of_week, ride_length, user_type
-	UNION ALL
-SELECT day_of_week, ride_length, user_type, count(*)
-FROM divvy_q2_2019_rides
-GROUP BY day_of_week, ride_length, user_type
-	UNION ALL
-SELECT day_of_week, ride_length, user_type, count(*)
-FROM divvy_q3_2019_rides
-GROUP BY day_of_week, ride_length, user_type
-	UNION ALL
-SELECT day_of_week, ride_length, user_type, count(*)
-FROM divvy_q4_2019_rides
-GROUP BY day_of_week, ride_length, user_type) a
-WHERE ride_length > '00:00:00'
-GROUP BY day_of_week, ride_length, user_type;
+	SELECT day_of_week, ride_length, user_type, SUM(count)
+	FROM
+	(SELECT day_of_week, ride_length, user_type, COUNT(*)
+	FROM divvy_q1_2020_rides
+	GROUP BY day_of_week, ride_length, user_type
+		UNION ALL
+	SELECT day_of_week, ride_length, user_type, COUNT(*)
+	FROM divvy_q2_2019_rides
+	GROUP BY day_of_week, ride_length, user_type
+		UNION ALL
+	SELECT day_of_week, ride_length, user_type, COUNT(*)
+	FROM divvy_q3_2019_rides
+	GROUP BY day_of_week, ride_length, user_type
+		UNION ALL
+	SELECT day_of_week, ride_length, user_type, COUNT(*)
+	FROM divvy_q4_2019_rides
+	GROUP BY day_of_week, ride_length, user_type) a
+	WHERE ride_length > '00:00:00'
+	GROUP BY day_of_week, ride_length, user_type;
 
 
-	--create ride duration ranges from each view for viz
+	--create ride duration ranges for viz
 SELECT day_of_week, user_type, duration_group, SUM(sum)
 FROM (
 	SELECT *,
 		CASE 
-			WHEN ride_length < '00:30:00' THEN '<30 Mins'
-			WHEN ride_length >= '00:30:00' AND ride_length <= '01:00:00' THEN '30 mins - 1 Hr'
-			WHEN ride_length >= '01:00:01' AND ride_length <= '03:00:00' THEN '1-3 Hrs'
-			WHEN ride_length > '03:00:00' THEN '3+ Hrs'
+		WHEN ride_length < '00:30:00' THEN '<30 Mins'
+		WHEN ride_length >= '00:30:00' AND ride_length <= '01:00:00' THEN '30 mins - 1 Hr'
+		WHEN ride_length >= '01:00:01' AND ride_length <= '03:00:00' THEN '1-3 Hrs'
+		WHEN ride_length > '03:00:00' THEN '3+ Hrs'
 		END AS duration_group
 	FROM ride_length_by_day) a
 GROUP BY day_of_week, duration_group, user_type;
 
 
-/* 2 views - 1 for members and 1 for casual users 
- with city locations of casual and member riders
+/* View with city locations of casual and member riders
  4 quarters compiled 
  export for viz */
  
 CREATE VIEW station_uses AS
-SELECT station, latitude, longitude, user_type, SUM(station_count) AS station_count 
-FROM
-	(SELECT station, latitude, longitude, user_type, COUNT(ride_id) AS station_count
-	FROM divvy_q1_2020_rides d
-	JOIN station_coordinates s ON d.start_station_id = s.station_id
-	GROUP BY station, latitude, longitude, user_type
-		UNION ALL
-	SELECT station, latitude, longitude, user_type, COUNT(ride_id) AS station_count
-	FROM divvy_q2_2019_rides d
-	JOIN station_coordinates s ON d.start_station_id = s.station_id
-	GROUP BY station, latitude, longitude, user_type
-		UNION ALL
-	SELECT station, latitude, longitude, user_type, COUNT(ride_id) AS station_count
-	FROM divvy_q3_2019_rides d
-	JOIN station_coordinates s ON d.start_station_id = s.station_id
-	GROUP BY station, latitude, longitude, user_type
-		UNION ALL
-	SELECT station, latitude, longitude, user_type, COUNT(ride_id) AS station_count
-	FROM divvy_q4_2019_rides d
-	JOIN station_coordinates s ON d.start_station_id = s.station_id
-	GROUP BY station, latitude, longitude, user_type) a
-GROUP BY station, latitude, longitude, user_type;
-
-
+	SELECT station, latitude, longitude, user_type, SUM(station_count) AS station_count 
+	FROM
+		(SELECT station, latitude, longitude, user_type, COUNT(*) AS station_count
+		FROM divvy_q1_2020_rides d
+		JOIN station_coordinates s ON d.start_station_id = s.station_id
+		GROUP BY station, latitude, longitude, user_type
+			UNION ALL
+		SELECT station, latitude, longitude, user_type, COUNT(*) AS station_count
+		FROM divvy_q2_2019_rides d
+		JOIN station_coordinates s ON d.start_station_id = s.station_id
+		GROUP BY station, latitude, longitude, user_type
+			UNION ALL
+		SELECT station, latitude, longitude, user_type, COUNT(*) AS station_count
+		FROM divvy_q3_2019_rides d
+		JOIN station_coordinates s ON d.start_station_id = s.station_id
+		GROUP BY station, latitude, longitude, user_type
+			UNION ALL
+		SELECT station, latitude, longitude, user_type, COUNT(*) AS station_count
+		FROM divvy_q4_2019_rides d
+		JOIN station_coordinates s ON d.start_station_id = s.station_id
+		GROUP BY station, latitude, longitude, user_type) a
+	GROUP BY station, latitude, longitude, user_type;
 
