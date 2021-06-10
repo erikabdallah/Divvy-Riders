@@ -108,7 +108,13 @@ CREATE TABLE divvy_q4_2019_rides1 AS
 
 -- create table of weekday ride times for Casual and Members for viz
 CREATE VIEW weekday_rides_by_time AS
-	SELECT user_type, hour, SUM(count)
+SELECT user_type, SUM(count),
+	CASE 
+	WHEN hour IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11) THEN CAST(hour as varchar(5)) || ' AM'
+	WHEN hour = 12 THEN '12 PM'
+	WHEN hour IN(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23) THEN CAST(hour - 12 as varchar(5)) || ' PM'
+	WHEN hour = 0 THEN '12 AM'
+	END as time
 	FROM
 		(SELECT user_type, hour, COUNT(*) FROM divvy_q1_2020_rides1
 		GROUP BY user_type, hour 
@@ -120,7 +126,7 @@ CREATE VIEW weekday_rides_by_time AS
 		GROUP BY user_type, hour
 			UNION ALL 
 		SELECT user_type, hour, COUNT(*) FROM divvy_q4_2019_rides1
-		GROUP BY user_type, hour)
+		GROUP BY user_type, hour) a
 	GROUP BY user_type, hour;
 
 
