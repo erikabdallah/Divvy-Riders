@@ -96,6 +96,35 @@ FROM
 from divvy_2020_q1_trips_users) a;
 
 
+alter table divvy_q4_2019_rides
+add column time time;
+
+update divvy_q4_2019_rides
+set time = start_time::time
+
+CREATE TABLE divvy_q4_2019_rides1 AS
+select ride_id, start_station_id, user_type, day_of_week, ride_length, 
+	extract(hour from time) as hour
+from divvy_q4_2019_rides
+WHERE day_of_week IN('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday');
+
+CREATE VIEW weekday_rides_by_time AS
+select user_type, hour, SUM(count)
+FROM
+(select user_type, hour, Count(*) from divvy_q1_2020_rides1
+group by user_type, hour 
+union 
+select user_type, hour, Count(*) from divvy_q2_2019_rides1
+group by user_type, hour
+union 
+select user_type, hour, Count(*) from divvy_q3_2019_rides1
+group by user_type, hour
+union 
+select user_type, hour, Count(*) from divvy_q4_2019_rides1
+group by user_type, hour)
+group by user_type, hour;
+
+
 /* find out what demographic has the most subscriptions
  run q2 2019 - q4 2019 */
  
@@ -204,13 +233,5 @@ FROM
 	GROUP BY station, latitude, longitude, user_type) a
 GROUP BY station, latitude, longitude, user_type;
 
-	/* find out times of casual users rides during the week and export for viz
-	 to find out if casual users and members have similar riding patterns  */
-	 
-SELECT ride_id, start_time, day_of_week 
-FROM ride_length_member
-WHERE day_of_week IN('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
-AND ride_length < '00:30:00'
-ORDER BY start_time;
 
 
